@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>非公式DBDキラー戦績記録・分析ツール (MVP)</title>
+  <style>
+    body { font-family: sans-serif; max-width: 600px; margin: 20px auto; padding: 0 15px; background: #121212; color: #eee; }
+    h1, h2 { color: #e53935; }
+    .card { background: #1e1e1e; padding: 15px; border-radius: 8px; margin-bottom: 20px; border: 1px solid #333; }
+    label { display: block; margin-top: 10px; font-weight: bold; }
+    select, input, button { width: 100%; padding: 10px; margin-top: 5px; border-radius: 4px; border: 1px solid #444; background: #2a2a2a; color: #fff; box-sizing: border-box; }
+    button { background: #e53935; font-weight: bold; cursor: pointer; margin-top: 15px; border: none; }
+    button:hover { background: #c62828; }
+    ul { list-style: none; padding: 0; }
+    li { background: #2a2a2a; padding: 10px; margin-bottom: 8px; border-radius: 4px; border-left: 4px solid #e53935; }
+  </style>
+</head>
+<body>
+  <h1>DBDキラー戦績記録 (MVP)</h1>
+  
+  <div class="card">
+    <h2>試合結果の入力</h2>
+    <form id="matchForm">
+      <label>使用キラー</label>
+      <input type="text" id="killer" placeholder="例: トラッパー, ナース" required>
+
+      <label>1人目キル時の残り発電機数</label>
+      <select id="gensAtFirstKill">
+        <option value="5">5台（超早期）</option>
+        <option value="4">4台</option>
+        <option value="3">3台</option>
+        <option value="2">2台</option>
+        <option value="1">1台</option>
+        <option value="0">0台（通電後）</option>
+        <option value="none">1人目キルなし（0キル）</option>
+      </select>
+
+      <label>最終キル数（結果）</label>
+      <select id="resultKills">
+        <option value="4">4キル（全滅）</option>
+        <option value="3">3キル（勝利）</option>
+        <option value="2">2キル（引き分け）</option>
+        <option value="1">1キル（敗北）</option>
+        <option value="0">0キル（全逃げ）</option>
+      </select>
+
+      <button type="submit">戦績を記録（保存）</button>
+    </form>
+  </div>
+
+  <div class="card">
+    <h2>対戦履歴（LocalStorage保存）</h2>
+    <ul id="historyList"></ul>
+  </div>
+
+  <script>
+    const form = document.getElementById('matchForm');
+    const historyList = document.getElementById('historyList');
+
+    function loadHistory() {
+      const matches = JSON.parse(localStorage.getItem('dbd_matches') || '[]');
+      historyList.innerHTML = matches.length === 0 ? '<li>まだ記録がありません</li>' : '';
+      matches.reverse().forEach(m => {
+        const li = document.createElement('li');
+        const genText = m.gensAtFirstKill === 'none' ? 'キルなし' : `残り発電機 ${m.gensAtFirstKill}台`;
+        li.textContent = `【${m.killer}】 結果: ${m.resultKills}キル | 1人目キル時: ${genText} (${m.date})`;
+        historyList.appendChild(li);
+      });
+    }
+
+    form.addEventListener('submit', (e) => {
+      e.preventDefault();
+      const newMatch = {
+        killer: document.getElementById('killer').value,
+        gensAtFirstKill: document.getElementById('gensAtFirstKill').value,
+        resultKills: document.getElementById('resultKills').value,
+        date: new Date().toLocaleDateString('ja-JP')
+      };
+      const matches = JSON.parse(localStorage.getItem('dbd_matches') || '[]');
+      matches.push(newMatch);
+      localStorage.setItem('dbd_matches', JSON.stringify(matches));
+      form.reset();
+      loadHistory();
+    });
+
+    loadHistory();
+  </script>
+</body>
+</html>
