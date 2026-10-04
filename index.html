@@ -14,6 +14,11 @@
     button:hover { background: #c62828; }
     ul { list-style: none; padding: 0; }
     li { background: #2a2a2a; padding: 10px; margin-bottom: 8px; border-radius: 4px; border-left: 4px solid #e53935; }
+    table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 0.95rem; }
+    th, td { padding: 8px 10px; text-align: center; border-bottom: 1px solid #333; }
+    th { background: #252525; color: #ff8a80; font-weight: bold; }
+    tr:nth-child(even) { background: #222; }
+    tr:hover { background: #2c2c2c; }
   </style>
 </head>
 <body>
@@ -50,6 +55,21 @@
   </div>
 
   <div class="card">
+    <h2>残り発電機ごとの戦績分析</h2>
+    <table id="statsTable">
+      <thead>
+        <tr>
+          <th style="text-align: left;">1人目キル時</th>
+          <th>試合数</th>
+          <th>平均キル</th>
+          <th>勝率 (3K+)</th>
+        </tr>
+      </thead>
+      <tbody id="statsBody"></tbody>
+    </table>
+  </div>
+
+  <div class="card">
     <h2>対戦履歴（LocalStorage保存）</h2>
     <ul id="historyList"></ul>
   </div>
@@ -57,11 +77,61 @@
   <script>
     const form = document.getElementById('matchForm');
     const historyList = document.getElementById('historyList');
+    const statsBody = document.getElementById('statsBody');
+
+    const GEN_CATEGORIES = [
+      { key: '5', label: '残り 5台' },
+      { key: '4', label: '残り 4台' },
+      { key: '3', label: '残り 3台' },
+      { key: '2', label: '残り 2台' },
+      { key: '1', label: '残り 1台' },
+      { key: '0', label: '残り 0台（通電後）' },
+      { key: 'none', label: 'キルなし' }
+    ];
+
+    function updateStats(matches) {
+      const stats = {};
+      GEN_CATEGORIES.forEach(cat => {
+        stats[cat.key] = { count: 0, totalKills: 0, wins: 0 };
+      });
+
+      matches.forEach(m => {
+        const key = m.gensAtFirstKill;
+        if (stats[key]) {
+          const kills = Number(m.resultKills) || 0;
+          stats[key].count += 1;
+          stats[key].totalKills += kills;
+          if (kills >= 3) {
+            stats[key].wins += 1;
+          }
+        }
+      });
+
+      statsBody.innerHTML = '';
+      GEN_CATEGORIES.forEach(cat => {
+        const data = stats[cat.key];
+        const tr = document.createElement('tr');
+
+        const avgKills = data.count > 0 ? (data.totalKills / data.count).toFixed(2) : '-';
+        const winRate = data.count > 0 ? ((data.wins / data.count) * 100).toFixed(1) + '%' : '-';
+
+        tr.innerHTML = `
+          <td style="text-align: left;">${cat.label}</td>
+          <td>${data.count}</td>
+          <td>${avgKills}</td>
+          <td>${winRate}</td>
+        `;
+        statsBody.appendChild(tr);
+      });
+    }
 
     function loadHistory() {
       const matches = JSON.parse(localStorage.getItem('dbd_matches') || '[]');
+      
+      updateStats(matches);
+
       historyList.innerHTML = matches.length === 0 ? '<li>まだ記録がありません</li>' : '';
-      matches.reverse().forEach(m => {
+      [...matches].reverse().forEach(m => {
         const li = document.createElement('li');
         const genText = m.gensAtFirstKill === 'none' ? 'キルなし' : `残り発電機 ${m.gensAtFirstKill}台`;
         li.textContent = `【${m.killer}】 結果: ${m.resultKills}キル | 1人目キル時: ${genText} (${m.date})`;
