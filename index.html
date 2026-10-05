@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>非公式DBDキラー戦績記録・分析ツール (MVP)</title>
+  <title>【非公式】DBDキラー戦績記録・分析ツール</title>
   <style>
     body { font-family: sans-serif; max-width: 600px; margin: 20px auto; padding: 0 15px; background: #121212; color: #eee; }
     h1, h2 { color: #e53935; }
@@ -21,6 +21,7 @@
     .badge-none { background: #424242; color: #bbb; }
     ul { list-style: none; padding: 0; }
     li { background: #2a2a2a; padding: 10px; margin-bottom: 8px; border-radius: 4px; border-left: 4px solid #e53935; }
+    .history-meta { font-size: 0.85rem; color: #aaa; }
     table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 0.95rem; }
     th, td { padding: 8px 10px; text-align: center; border-bottom: 1px solid #333; }
     th { background: #252525; color: #ff8a80; font-weight: bold; }
@@ -29,7 +30,7 @@
   </style>
 </head>
 <body>
-  <h1>DBDキラー戦績記録 (MVP)</h1>
+  <h1>【非公式】<br>DBDキラー戦績記録・分析ツール</h1>
   
   <div class="card">
     <h2>試合結果の入力</h2>
@@ -39,7 +40,7 @@
 
       <label>1人目キル時の残り発電機数</label>
       <select id="gensAtFirstKill">
-        <option value="5">5台（超早期）</option>
+        <option value="5">5台</option>
         <option value="4">4台</option>
         <option value="3">3台</option>
         <option value="2">2台</option>
@@ -50,11 +51,11 @@
 
       <label>最終キル数（結果）</label>
       <select id="resultKills">
-        <option value="4">4キル（全滅）</option>
-        <option value="3">3キル（勝利）</option>
-        <option value="2">2キル（引き分け）</option>
-        <option value="1">1キル（敗北）</option>
-        <option value="0">0キル（全逃げ）</option>
+        <option value="4">4キル</option>
+        <option value="3">3キル</option>
+        <option value="2">2キル</option>
+        <option value="1">1キル</option>
+        <option value="0">0キル</option>
       </select>
 
       <label>戦術の有無</label>
@@ -67,7 +68,7 @@
         </label>
       </div>
 
-      <button type="submit">戦績を記録（保存）</button>
+      <button type="submit">戦績を記録</button>
     </form>
   </div>
 
@@ -80,6 +81,7 @@
           <th>試合数</th>
           <th>平均キル</th>
           <th>勝率 (3K+)</th>
+          <th>勝率 (4K)</th>
         </tr>
       </thead>
       <tbody id="statsBody"></tbody>
@@ -95,6 +97,7 @@
           <th>試合数</th>
           <th>平均キル</th>
           <th>勝率 (3K+)</th>
+          <th>勝率 (4K)</th>
         </tr>
       </thead>
       <tbody id="tacticsStatsBody"></tbody>
@@ -102,7 +105,7 @@
   </div>
 
   <div class="card">
-    <h2>対戦履歴（LocalStorage保存）</h2>
+    <h2>対戦履歴</h2>
     <ul id="historyList"></ul>
   </div>
 
@@ -142,7 +145,7 @@
     function updateStats(matches) {
       const stats = {};
       GEN_CATEGORIES.forEach(cat => {
-        stats[cat.key] = { count: 0, totalKills: 0, wins: 0 };
+        stats[cat.key] = { count: 0, totalKills: 0, wins: 0, wins4: 0 };
       });
 
       matches.forEach(m => {
@@ -154,6 +157,9 @@
           if (kills >= 3) {
             stats[key].wins += 1;
           }
+          if (kills === 4) {
+            stats[key].wins4 += 1;
+          }
         }
       });
 
@@ -164,12 +170,14 @@
 
         const avgKills = data.count > 0 ? (data.totalKills / data.count).toFixed(2) : '-';
         const winRate = data.count > 0 ? ((data.wins / data.count) * 100).toFixed(1) + '%' : '-';
+        const winRate4 = data.count > 0 ? ((data.wins4 / data.count) * 100).toFixed(1) + '%' : '-';
 
         tr.innerHTML = `
           <td style="text-align: left;">${cat.label}</td>
           <td>${data.count}</td>
           <td>${avgKills}</td>
           <td>${winRate}</td>
+          <td>${winRate4}</td>
         `;
         statsBody.appendChild(tr);
       });
@@ -182,6 +190,7 @@
         let count = 0;
         let totalKills = 0;
         let wins = 0;
+        let wins4 = 0;
 
         matches.forEach(m => {
           if (cat.filter(m)) {
@@ -191,11 +200,15 @@
             if (kills >= 3) {
               wins += 1;
             }
+            if (kills === 4) {
+              wins4 += 1;
+            }
           }
         });
 
         const avgKills = count > 0 ? (totalKills / count).toFixed(2) : '-';
         const winRate = count > 0 ? ((wins / count) * 100).toFixed(1) + '%' : '-';
+        const winRate4 = count > 0 ? ((wins4 / count) * 100).toFixed(1) + '%' : '-';
 
         const tr = document.createElement('tr');
         tr.innerHTML = `
@@ -203,6 +216,7 @@
           <td>${count}</td>
           <td>${avgKills}</td>
           <td>${winRate}</td>
+          <td>${winRate4}</td>
         `;
         tacticsStatsBody.appendChild(tr);
       });
@@ -235,7 +249,11 @@
         }
 
         li.innerHTML = `
-          <div>【${escapeHtml(m.killer)}】 結果: ${escapeHtml(m.resultKills)}キル | 1人目キル時: ${genText} (${escapeHtml(m.date)})</div>
+          <div style="display: flex; justify-content: space-between; align-items: baseline;">
+            <span style="font-weight: bold;">【${escapeHtml(m.killer)}】 結果: ${escapeHtml(m.resultKills)}キル</span>
+            <span class="history-meta">${escapeHtml(m.date)}</span>
+          </div>
+          <div style="font-size: 0.9rem; color: #bbb; margin-top: 4px;">1人目キル時: ${genText}</div>
           <div style="margin-top: 6px;">${badges}</div>
         `;
         historyList.appendChild(li);
