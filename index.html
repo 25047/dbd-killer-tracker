@@ -78,9 +78,50 @@
       align-items: center;
       margin-top: 5px;
     }
-    .killer-input-wrapper input {
+    .killer-input-container {
+      position: relative;
       flex: 1;
+    }
+    .killer-input-container input {
+      width: 100%;
       margin-top: 0;
+    }
+    .suggest-dropdown {
+      position: absolute;
+      top: 100%;
+      left: 0;
+      width: 100%;
+      max-height: 220px;
+      overflow-y: auto;
+      background: #222;
+      border: 1px solid #444;
+      border-top: none;
+      border-radius: 0 0 4px 4px;
+      box-shadow: 0 6px 16px rgba(0, 0, 0, 0.6);
+      z-index: 1000;
+      display: none;
+      box-sizing: border-box;
+    }
+    .suggest-item {
+      padding: 9px 12px;
+      cursor: pointer;
+      font-size: 0.92rem;
+      color: #eee;
+      border-bottom: 1px solid #2d2d2d;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      transition: background 0.15s ease;
+    }
+    .suggest-item:last-child {
+      border-bottom: none;
+    }
+    .suggest-item:hover,
+    .suggest-item.active {
+      background: #333;
+      color: #fff;
+      border-left: 4px solid #00ffff;
+      padding-left: 8px;
     }
     .fav-btn {
       width: 44px;
@@ -123,6 +164,24 @@
     th { background: #252525; color: #ff8a80; font-weight: bold; }
     tr:nth-child(even) { background: #222; }
     tr:hover { background: #2c2c2c; }
+    .reset-filter-btn {
+      background: #2a2a2a;
+      color: #ddd;
+      border: 1px solid #555;
+      border-radius: 4px;
+      padding: 6px 12px;
+      font-size: 0.82rem;
+      font-weight: bold;
+      cursor: pointer;
+      transition: all 0.15s ease;
+      width: auto;
+      margin-top: 0;
+    }
+    .reset-filter-btn:hover {
+      background: #383838;
+      border-color: #e53935;
+      color: #fff;
+    }
   </style>
 </head>
 <body>
@@ -134,10 +193,12 @@
       <label>使用キラー</label>
       <div id="killerQuickArea" class="killer-quick-container"></div>
       <div class="killer-input-wrapper">
-        <input type="text" id="killer" list="killerList" placeholder="例: トラッパー, チャッキー, ナース" required autocomplete="off">
+        <div class="killer-input-container">
+          <input type="text" id="killer" placeholder="例: トラッパー, チャッキー, ナース" required autocomplete="off">
+          <div id="killerSuggestList" class="suggest-dropdown"></div>
+        </div>
         <button type="button" id="favToggleBtn" class="fav-btn" title="お気に入り登録/解除">☆</button>
       </div>
-      <datalist id="killerList"></datalist>
 
       <label>1人目キル時の残り発電機数</label>
       <input type="hidden" id="gensAtFirstKill" value="5">
@@ -171,8 +232,22 @@
         </label>
       </div>
 
-      <button type="submit" class="submit-btn">戦績を記録</button>
+      <button type="button" id="recordBtn" class="submit-btn">戦績を記録</button>
     </form>
+  </div>
+
+  <div class="card" id="filterCard">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+      <h2 style="margin: 0;">キラーで絞り込み分析</h2>
+      <button type="button" id="resetFilterBtn" class="reset-filter-btn">すべてのキラー</button>
+    </div>
+    <div style="display: flex; gap: 8px; align-items: center;">
+      <div class="killer-input-container">
+        <input type="text" id="filterKiller" placeholder="例: エイリアン, ナース（空欄で全件）" autocomplete="off" style="margin-top: 0;">
+        <div id="filterSuggestList" class="suggest-dropdown"></div>
+      </div>
+    </div>
+    <div id="filterStatus" style="font-size: 0.85rem; color: #aaa; margin-top: 6px;">表示中: すべてのキラー</div>
   </div>
 
   <div class="card">
@@ -325,14 +400,49 @@
       });
     }
 
+    let currentFilterKiller = '';
+
+    function getFilteredMatches(allMatches) {
+      if (!currentFilterKiller) return allMatches;
+      const normalizedFilter = normalizeKillerName(currentFilterKiller);
+      return allMatches.filter(m => normalizeKillerName(m.killer) === normalizedFilter);
+    }
+
+    function updateFilterStatus(totalCount, filteredCount) {
+      const statusEl = document.getElementById('filterStatus');
+      if (!statusEl) return;
+      if (!currentFilterKiller) {
+        statusEl.textContent = `表示中: すべてのキラー（全 ${totalCount} 件）`;
+      } else {
+        const norm = normalizeKillerName(currentFilterKiller);
+        const info = getKillerInfo(norm);
+        if (filteredCount === 0) {
+          statusEl.textContent = `表示中: 【${info.emoji} ${info.name}】 該当する対戦データはありません（0件）`;
+        } else {
+          statusEl.textContent = `表示中: 【${info.emoji} ${info.name}】 絞り込み結果: ${filteredCount} 件 / 全 ${totalCount} 件`;
+        }
+      }
+    }
+
     function loadHistory() {
       const matches = JSON.parse(localStorage.getItem('dbd_matches') || '[]');
-      
-      updateStats(matches);
-      updateTacticsStats(matches);
+      const filteredMatches = getFilteredMatches(matches);
 
-      historyList.innerHTML = matches.length === 0 ? '<li>まだ記録がありません</li>' : '';
-      [...matches].reverse().forEach(m => {
+      updateStats(filteredMatches);
+      updateTacticsStats(filteredMatches);
+      updateFilterStatus(matches.length, filteredMatches.length);
+
+      if (filteredMatches.length === 0) {
+        if (currentFilterKiller) {
+          historyList.innerHTML = '<li style="color:#aaa;">該当する対戦データはありません（-）</li>';
+        } else {
+          historyList.innerHTML = '<li>まだ記録がありません</li>';
+        }
+        return;
+      }
+
+      historyList.innerHTML = '';
+      [...filteredMatches].reverse().forEach(m => {
         const li = document.createElement('li');
         const genText = m.gensAtFirstKill === 'none' ? 'キルなし' : `残り発電機 ${m.gensAtFirstKill}台`;
         
@@ -410,7 +520,7 @@
       { name: 'ゴーストフェイス', emoji: '📷', aliases: ['ゴーストフェイス', 'ゴスフェ'] },
       { name: 'デモゴルゴン', emoji: '🌺', aliases: ['デモゴルゴン'] },
       { name: '鬼', emoji: '👹', aliases: ['鬼'] },
-      { name: 'デススリンガー', emoji: '🔫', aliases: ['デススリンガー', '銃'] },
+      { name: 'デススリンガー', emoji: '🔫', aliases: ['デススリンガー'] },
       { name: 'エクセキューショナー', emoji: '🔺', aliases: ['エクセキューショナー', '三角', '三角頭'] },
       { name: 'ブライト', emoji: '💉', aliases: ['ブライト'] },
       { name: 'ツインズ', emoji: '👯', aliases: ['ツインズ'] },
@@ -422,7 +532,7 @@
       { name: 'ドレッジ', emoji: '💀', aliases: ['ドレッジ'] },
       { name: 'ウェスカー', emoji: '😎', aliases: ['ウェスカー', 'マスターマインド'] },
       { name: 'ナイト', emoji: '⚔️', aliases: ['ナイト'] },
-      { name: 'スカルマーチャント', emoji: '🛸', aliases: ['スカルマーチャント', 'スカマ'] },
+      { name: 'スカルマーチャント', emoji: '🛸', aliases: ['スカルマーチャント'] },
       { name: 'シンギュラリティ', emoji: '🤖', aliases: ['シンギュラリティ'] },
       { name: 'ゼノモーフ', emoji: '👽', aliases: ['ゼノモーフ', 'エイリアン'] },
       { name: 'グッドガイ', emoji: '🪆', aliases: ['グッドガイ', 'チャッキー'] },
@@ -458,16 +568,144 @@
       return KILLER_LIST.find(k => k.name === norm) || { name: norm, emoji: '👤', aliases: [norm] };
     }
 
-    function setupKillerDatalist() {
-      const datalist = document.getElementById('killerList');
-      if (!datalist) return;
-      datalist.innerHTML = '';
-      KILLER_LIST.forEach(k => {
-        const aliasText = k.aliases.filter(a => a !== k.name).join(' / ');
-        const opt = document.createElement('option');
-        opt.value = `${k.emoji}${k.name}` + (aliasText ? `（${aliasText}）` : '');
-        datalist.appendChild(opt);
+    function getKillerDisplayText(k) {
+      const aliasText = k.aliases.filter(a => a !== k.name).join(' / ');
+      return `${k.emoji}${k.name}` + (aliasText ? `（${aliasText}）` : '');
+    }
+
+    function setupKillerSuggest({ inputId, suggestListId, onSelect, onInputClear, onInput }) {
+      const inputEl = document.getElementById(inputId);
+      const suggestList = document.getElementById(suggestListId);
+      if (!inputEl || !suggestList) return null;
+
+      let activeIndex = -1;
+      let currentMatched = [];
+
+      function highlightItem(index) {
+        const items = suggestList.querySelectorAll('.suggest-item');
+        items.forEach((item, idx) => {
+          if (idx === index) {
+            item.classList.add('active');
+            item.scrollIntoView({ block: 'nearest' });
+          } else {
+            item.classList.remove('active');
+          }
+        });
+        activeIndex = index;
+      }
+
+      function hideSuggest() {
+        suggestList.style.display = 'none';
+        suggestList.innerHTML = '';
+        activeIndex = -1;
+        currentMatched = [];
+      }
+
+      function renderSuggest(query) {
+        const q = (query || '').trim();
+        if (!q) {
+          hideSuggest();
+          if (onInputClear) onInputClear();
+          return;
+        }
+
+        currentMatched = KILLER_LIST.filter(k => {
+          if (k.name.includes(q)) return true;
+          for (const a of k.aliases) {
+            if (a.includes(q)) return true;
+          }
+          return false;
+        });
+
+        if (currentMatched.length === 0) {
+          hideSuggest();
+          return;
+        }
+
+        suggestList.innerHTML = '';
+        activeIndex = -1;
+
+        currentMatched.forEach((k, idx) => {
+          const item = document.createElement('div');
+          item.className = 'suggest-item';
+          item.textContent = getKillerDisplayText(k);
+          item.addEventListener('mouseenter', () => {
+            highlightItem(idx);
+          });
+          item.addEventListener('click', () => {
+            chooseKiller(k);
+          });
+          suggestList.appendChild(item);
+        });
+
+        suggestList.style.display = 'block';
+      }
+
+      function chooseKiller(killer) {
+        inputEl.value = killer.name;
+        hideSuggest();
+        if (onSelect) onSelect(killer);
+      }
+
+      inputEl.addEventListener('input', (e) => {
+        renderSuggest(e.target.value);
+        if (onInput) onInput(e.target.value);
       });
+
+      inputEl.addEventListener('focus', (e) => {
+        if (e.target.value.trim()) {
+          renderSuggest(e.target.value);
+        }
+      });
+
+      inputEl.addEventListener('keydown', (e) => {
+        const isShowing = suggestList.style.display === 'block' && currentMatched.length > 0;
+
+        if (e.key === 'ArrowDown') {
+          if (!isShowing) {
+            if (inputEl.value.trim()) {
+              renderSuggest(inputEl.value);
+            }
+            return;
+          }
+          e.preventDefault();
+          let nextIndex = activeIndex + 1;
+          if (nextIndex >= currentMatched.length) {
+            nextIndex = 0;
+          }
+          highlightItem(nextIndex);
+        } else if (e.key === 'ArrowUp') {
+          if (!isShowing) return;
+          e.preventDefault();
+          let prevIndex = activeIndex - 1;
+          if (prevIndex < 0) {
+            prevIndex = currentMatched.length - 1;
+          }
+          highlightItem(prevIndex);
+        } else if (e.key === 'Enter') {
+          e.preventDefault();
+          if (isShowing && activeIndex >= 0 && activeIndex < currentMatched.length) {
+            chooseKiller(currentMatched[activeIndex]);
+          }
+        } else if (e.key === 'Escape') {
+          if (isShowing) {
+            e.preventDefault();
+            hideSuggest();
+          }
+        }
+      });
+
+      document.addEventListener('click', (e) => {
+        const container = inputEl.closest('.killer-input-container');
+        if (container && !container.contains(e.target)) {
+          hideSuggest();
+        }
+      });
+
+      return {
+        render: renderSuggest,
+        hide: hideSuggest
+      };
     }
 
     function getFavorites() {
@@ -565,18 +803,65 @@
       renderKillerQuickButtons();
     });
 
-    document.getElementById('killer').addEventListener('input', () => {
-      renderKillerQuickButtons();
+    const killerSuggestInstance = setupKillerSuggest({
+      inputId: 'killer',
+      suggestListId: 'killerSuggestList',
+      onSelect: (k) => {
+        selectKiller(k.name);
+      },
+      onInput: () => {
+        renderKillerQuickButtons();
+      },
+      onInputClear: () => {
+        renderKillerQuickButtons();
+      }
+    });
+
+    const filterSuggestInstance = setupKillerSuggest({
+      inputId: 'filterKiller',
+      suggestListId: 'filterSuggestList',
+      onSelect: (k) => {
+        currentFilterKiller = k.name;
+        loadHistory();
+      },
+      onInput: (val) => {
+        currentFilterKiller = (val || '').trim();
+        loadHistory();
+      },
+      onInputClear: () => {
+        currentFilterKiller = '';
+        loadHistory();
+      }
+    });
+
+    const filterKillerInput = document.getElementById('filterKiller');
+    document.getElementById('resetFilterBtn').addEventListener('click', () => {
+      filterKillerInput.value = '';
+      currentFilterKiller = '';
+      if (filterSuggestInstance) filterSuggestInstance.hide();
+      loadHistory();
     });
 
     setupSelectButtonGroup('gensBtnGroup', 'gensAtFirstKill');
     setupSelectButtonGroup('killsBtnGroup', 'resultKills');
-    setupKillerDatalist();
     renderKillerQuickButtons();
+
+    form.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+      }
+    });
 
     form.addEventListener('submit', (e) => {
       e.preventDefault();
-      const rawKiller = document.getElementById('killer').value;
+    });
+
+    function handleRecordMatch() {
+      const rawKiller = document.getElementById('killer').value.trim();
+      if (!rawKiller) {
+        alert('使用キラーを入力または選択してください');
+        return;
+      }
       const normalizedKiller = normalizeKillerName(rawKiller);
 
       const newMatch = {
@@ -592,9 +877,15 @@
       localStorage.setItem('dbd_matches', JSON.stringify(matches));
       form.reset();
       resetSelectButtons();
+      if (killerSuggestInstance) killerSuggestInstance.hide();
       renderKillerQuickButtons();
       loadHistory();
-    });
+    }
+
+    const recordBtn = document.getElementById('recordBtn');
+    if (recordBtn) {
+      recordBtn.addEventListener('click', handleRecordMatch);
+    }
 
     loadHistory();
   </script>
