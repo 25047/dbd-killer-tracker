@@ -38,6 +38,76 @@
       border-color: #ff5252;
       box-shadow: 0 0 10px rgba(229, 57, 53, 0.75), 0 0 2px #ff5252;
     }
+    .killer-quick-container {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: 6px;
+      margin-bottom: 6px;
+    }
+    .killer-quick-btn {
+      padding: 7px 11px;
+      border-radius: 4px;
+      border: 1px solid #444;
+      background: #252525;
+      color: #ddd;
+      font-size: 0.88rem;
+      font-weight: bold;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      transition: all 0.15s ease;
+      box-sizing: border-box;
+    }
+    .killer-quick-btn:hover {
+      background: #333;
+      border-color: #666;
+      color: #fff;
+    }
+    /* 選択時の蛍光シアン発光エフェクト */
+    .killer-quick-btn.active {
+      border: 2px solid #00ffff;
+      color: #ffffff;
+      background: #14282e;
+      box-shadow: 0 0 12px rgba(0, 255, 255, 0.75), inset 0 0 4px rgba(0, 255, 255, 0.25);
+    }
+    .killer-input-wrapper {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      margin-top: 5px;
+    }
+    .killer-input-wrapper input {
+      flex: 1;
+      margin-top: 0;
+    }
+    .fav-btn {
+      width: 44px;
+      height: 44px;
+      padding: 0;
+      margin: 0;
+      border-radius: 4px;
+      border: 1px solid #444;
+      background: #2a2a2a;
+      color: #777;
+      font-size: 1.4rem;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.15s ease;
+      flex-shrink: 0;
+    }
+    .fav-btn:hover {
+      background: #333;
+      border-color: #666;
+    }
+    .fav-btn.active {
+      color: #ffd700;
+      border-color: #ffd700;
+      text-shadow: 0 0 8px rgba(255, 215, 0, 0.75);
+    }
     .checkbox-group { display: flex; gap: 20px; margin-top: 8px; }
     .checkbox-label { display: flex; align-items: center; gap: 6px; font-weight: normal; cursor: pointer; margin-top: 0; }
     .checkbox-label input[type="checkbox"] { cursor: pointer; width: 16px; height: 16px; margin: 0; }
@@ -62,7 +132,12 @@
     <h2>試合結果の入力</h2>
     <form id="matchForm">
       <label>使用キラー</label>
-      <input type="text" id="killer" placeholder="例: トラッパー, ナース" required>
+      <div id="killerQuickArea" class="killer-quick-container"></div>
+      <div class="killer-input-wrapper">
+        <input type="text" id="killer" list="killerList" placeholder="例: トラッパー, チャッキー, ナース" required autocomplete="off">
+        <button type="button" id="favToggleBtn" class="fav-btn" title="お気に入り登録/解除">☆</button>
+      </div>
+      <datalist id="killerList"></datalist>
 
       <label>1人目キル時の残り発電機数</label>
       <input type="hidden" id="gensAtFirstKill" value="5">
@@ -316,13 +391,196 @@
       });
     }
 
+    const KILLER_LIST = [
+      { name: 'トラッパー', emoji: '🪤', aliases: ['トラッパー'] },
+      { name: 'レイス', emoji: '🔔', aliases: ['レイス'] },
+      { name: 'ヒルビリー', emoji: '🔨', aliases: ['ヒルビリー', 'ビリー'] },
+      { name: 'ナース', emoji: '🪚', aliases: ['ナース'] },
+      { name: 'ハグ', emoji: '🔯', aliases: ['ハグ'] },
+      { name: 'ドクター', emoji: '⚡', aliases: ['ドクター'] },
+      { name: 'シェイプ', emoji: '🔪', aliases: ['シェイプ', 'マイケル'] },
+      { name: 'ハントレス', emoji: '🪓', aliases: ['ハントレス'] },
+      { name: 'カニバル', emoji: '🍖', aliases: ['カニバル', 'レザーフェイス'] },
+      { name: 'ナイトメア', emoji: '😴', aliases: ['ナイトメア', 'フレディ'] },
+      { name: 'ピッグ', emoji: '🐷', aliases: ['ピッグ'] },
+      { name: 'クラウン', emoji: '🤡', aliases: ['クラウン'] },
+      { name: 'スピリット', emoji: '👻', aliases: ['スピリット', '山岡凛', '凛'] },
+      { name: 'リージョン', emoji: '🎭', aliases: ['リージョン'] },
+      { name: 'プレイグ', emoji: '🤮', aliases: ['プレイグ'] },
+      { name: 'ゴーストフェイス', emoji: '📷', aliases: ['ゴーストフェイス', 'ゴスフェ'] },
+      { name: 'デモゴルゴン', emoji: '🌺', aliases: ['デモゴルゴン'] },
+      { name: '鬼', emoji: '👹', aliases: ['鬼'] },
+      { name: 'デススリンガー', emoji: '🔫', aliases: ['デススリンガー', '銃'] },
+      { name: 'エクセキューショナー', emoji: '🔺', aliases: ['エクセキューショナー', '三角', '三角頭'] },
+      { name: 'ブライト', emoji: '💉', aliases: ['ブライト'] },
+      { name: 'ツインズ', emoji: '👯', aliases: ['ツインズ'] },
+      { name: 'トリックスター', emoji: '🗡️', aliases: ['トリックスター', 'トリスタ'] },
+      { name: 'ネメシス', emoji: '🧟', aliases: ['ネメシス'] },
+      { name: 'セノバイト', emoji: '⛓️', aliases: ['セノバイト', 'ピンヘッド'] },
+      { name: 'アーティスト', emoji: '🐦⬛', aliases: ['アーティスト'] },
+      { name: '怨霊', emoji: '📺', aliases: ['怨霊', '貞子'] },
+      { name: 'ドレッジ', emoji: '💀', aliases: ['ドレッジ'] },
+      { name: 'ウェスカー', emoji: '😎', aliases: ['ウェスカー', 'マスターマインド'] },
+      { name: 'ナイト', emoji: '⚔️', aliases: ['ナイト'] },
+      { name: 'スカルマーチャント', emoji: '🛸', aliases: ['スカルマーチャント', 'スカマ'] },
+      { name: 'シンギュラリティ', emoji: '🤖', aliases: ['シンギュラリティ'] },
+      { name: 'ゼノモーフ', emoji: '👽', aliases: ['ゼノモーフ', 'エイリアン'] },
+      { name: 'グッドガイ', emoji: '🪆', aliases: ['グッドガイ', 'チャッキー'] },
+      { name: 'アンノウン', emoji: '😈', aliases: ['アンノウン'] },
+      { name: 'リッチ', emoji: '🧙', aliases: ['リッチ', 'ヴェクナ'] },
+      { name: 'ダークロード', emoji: '🧛', aliases: ['ダークロード', 'ドラキュラ'] },
+      { name: 'ハウンドマスター', emoji: '🐕', aliases: ['ハウンドマスター'] },
+      { name: '喰種', emoji: '🗼', aliases: ['喰種', '金木'] },
+      { name: 'アニマトロニック', emoji: '🍕', aliases: ['アニマトロニック', 'スプリングトラップ'] },
+      { name: 'ガスー', emoji: '🫁', aliases: ['ガスー'] },
+      { name: 'ファースト', emoji: '🕰️', aliases: ['ファースト', 'ヴェクナ'] },
+      { name: 'スラッシャー', emoji: '🏒', aliases: ['スラッシャー', 'ジェイソン'] },
+      { name: 'ジャッジメント', emoji: '👼', aliases: ['ジャッジメント'] }
+    ];
+
+    function normalizeKillerName(input) {
+      if (!input) return '';
+      const str = input.trim();
+      const exact = KILLER_LIST.find(k => k.name === str);
+      if (exact) return exact.name;
+
+      for (const k of KILLER_LIST) {
+        if (str.includes(k.name)) return k.name;
+        for (const alias of k.aliases) {
+          if (str.includes(alias)) return k.name;
+        }
+      }
+      return str;
+    }
+
+    function getKillerInfo(name) {
+      const norm = normalizeKillerName(name);
+      return KILLER_LIST.find(k => k.name === norm) || { name: norm, emoji: '👤', aliases: [norm] };
+    }
+
+    function setupKillerDatalist() {
+      const datalist = document.getElementById('killerList');
+      if (!datalist) return;
+      datalist.innerHTML = '';
+      KILLER_LIST.forEach(k => {
+        const aliasText = k.aliases.filter(a => a !== k.name).join(' / ');
+        const opt = document.createElement('option');
+        opt.value = `${k.emoji}${k.name}` + (aliasText ? `（${aliasText}）` : '');
+        datalist.appendChild(opt);
+      });
+    }
+
+    function getFavorites() {
+      try {
+        return JSON.parse(localStorage.getItem('dbd_favorite_killers') || '["トラッパー", "レイス", "ナース"]');
+      } catch (e) {
+        return ['トラッパー', 'レイス', 'ナース'];
+      }
+    }
+
+    function saveFavorites(favs) {
+      localStorage.setItem('dbd_favorite_killers', JSON.stringify(favs));
+    }
+
+    function getRecentKillers(favs, matches) {
+      const recent = [];
+      for (let i = matches.length - 1; i >= 0; i--) {
+        const kName = normalizeKillerName(matches[i].killer);
+        if (kName && !favs.includes(kName) && !recent.includes(kName)) {
+          recent.push(kName);
+          if (recent.length >= 3) break;
+        }
+      }
+      return recent;
+    }
+
+    function selectKiller(name) {
+      const killerInput = document.getElementById('killer');
+      killerInput.value = name;
+      renderKillerQuickButtons();
+    }
+
+    function renderKillerQuickButtons() {
+      const quickArea = document.getElementById('killerQuickArea');
+      const killerInput = document.getElementById('killer');
+      const favToggleBtn = document.getElementById('favToggleBtn');
+      if (!quickArea || !killerInput) return;
+
+      const favs = getFavorites();
+      const matches = JSON.parse(localStorage.getItem('dbd_matches') || '[]');
+      const recents = getRecentKillers(favs, matches);
+      const currentNorm = normalizeKillerName(killerInput.value);
+
+      if (favToggleBtn) {
+        const isFav = Boolean(currentNorm && favs.includes(currentNorm));
+        favToggleBtn.textContent = isFav ? '★' : '☆';
+        favToggleBtn.classList.toggle('active', isFav);
+        favToggleBtn.title = isFav ? 'お気に入りから解除' : 'お気に入りに追加（最大3枠）';
+      }
+
+      quickArea.innerHTML = '';
+
+      favs.forEach(kName => {
+        const info = getKillerInfo(kName);
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'killer-quick-btn' + (currentNorm === info.name ? ' active' : '');
+        btn.innerHTML = `<span style="color:#ffd700;font-size:0.75rem;">★</span> ${info.emoji} ${info.name}`;
+        btn.addEventListener('click', () => {
+          selectKiller(info.name);
+        });
+        quickArea.appendChild(btn);
+      });
+
+      recents.forEach(kName => {
+        const info = getKillerInfo(kName);
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'killer-quick-btn' + (currentNorm === info.name ? ' active' : '');
+        btn.innerHTML = `<span style="color:#888;font-size:0.75rem;">🕒</span> ${info.emoji} ${info.name}`;
+        btn.addEventListener('click', () => {
+          selectKiller(info.name);
+        });
+        quickArea.appendChild(btn);
+      });
+    }
+
+    document.getElementById('favToggleBtn').addEventListener('click', () => {
+      const killerInput = document.getElementById('killer');
+      const currentNorm = normalizeKillerName(killerInput.value);
+      if (!currentNorm) {
+        alert('キラー名を入力または選択してください');
+        return;
+      }
+      let favs = getFavorites();
+      if (favs.includes(currentNorm)) {
+        favs = favs.filter(k => k !== currentNorm);
+      } else {
+        if (favs.length >= 3) {
+          favs.shift();
+        }
+        favs.push(currentNorm);
+      }
+      saveFavorites(favs);
+      renderKillerQuickButtons();
+    });
+
+    document.getElementById('killer').addEventListener('input', () => {
+      renderKillerQuickButtons();
+    });
+
     setupSelectButtonGroup('gensBtnGroup', 'gensAtFirstKill');
     setupSelectButtonGroup('killsBtnGroup', 'resultKills');
+    setupKillerDatalist();
+    renderKillerQuickButtons();
 
     form.addEventListener('submit', (e) => {
       e.preventDefault();
+      const rawKiller = document.getElementById('killer').value;
+      const normalizedKiller = normalizeKillerName(rawKiller);
+
       const newMatch = {
-        killer: document.getElementById('killer').value,
+        killer: normalizedKiller || rawKiller,
         gensAtFirstKill: document.getElementById('gensAtFirstKill').value,
         resultKills: document.getElementById('resultKills').value,
         hasCamp: document.getElementById('hasCamp').checked,
@@ -334,6 +592,7 @@
       localStorage.setItem('dbd_matches', JSON.stringify(matches));
       form.reset();
       resetSelectButtons();
+      renderKillerQuickButtons();
       loadHistory();
     });
 
