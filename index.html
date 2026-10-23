@@ -182,6 +182,48 @@
       border-color: #e53935;
       color: #fff;
     }
+    .delete-match-btn {
+      background: #252525;
+      color: #bbb;
+      border: 1px solid #444;
+      border-radius: 4px;
+      padding: 4px 10px;
+      font-size: 0.78rem;
+      font-weight: bold;
+      cursor: pointer;
+      transition: all 0.15s ease;
+    }
+    .delete-match-btn:hover {
+      background: #b71c1c;
+      color: #fff;
+      border-color: #ff5252;
+    }
+    .backup-btn-group {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-top: 10px;
+    }
+    .backup-btn {
+      flex: 1;
+      min-width: 180px;
+      padding: 10px 12px;
+      border-radius: 4px;
+      border: 1px solid #555;
+      background: #2a2a2a;
+      color: #eee;
+      font-size: 0.9rem;
+      font-weight: bold;
+      cursor: pointer;
+      text-align: center;
+      transition: all 0.15s ease;
+      box-sizing: border-box;
+    }
+    .backup-btn:hover {
+      background: #383838;
+      border-color: #e53935;
+      color: #fff;
+    }
   </style>
 </head>
 <body>
@@ -285,6 +327,16 @@
   <div class="card">
     <h2>対戦履歴</h2>
     <ul id="historyList"></ul>
+  </div>
+
+  <div class="card" id="backupCard">
+    <h2>データのバックアップ・復元</h2>
+    <div style="font-size: 0.85rem; color: #aaa;">対戦データをJSONファイルとして端末に保存・復元できます。</div>
+    <div class="backup-btn-group">
+      <button type="button" id="exportJsonBtn" class="backup-btn">💾 データ書き出し（JSON）</button>
+      <button type="button" id="importJsonBtn" class="backup-btn">📂 データ読み込み（JSON）</button>
+      <input type="file" id="importJsonInput" accept=".json,application/json" style="display: none;">
+    </div>
   </div>
 
   <script>
@@ -424,8 +476,44 @@
       }
     }
 
-    function loadHistory() {
+    function generateMatchId() {
+      return Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 9);
+    }
+
+    function getMatchesWithIds() {
       const matches = JSON.parse(localStorage.getItem('dbd_matches') || '[]');
+      let updated = false;
+      matches.forEach((m, idx) => {
+        if (!m.id) {
+          m.id = `${Date.now().toString(36)}-${idx}-${Math.random().toString(36).slice(2, 7)}`;
+          updated = true;
+        }
+      });
+      if (updated) {
+        localStorage.setItem('dbd_matches', JSON.stringify(matches));
+      }
+      return matches;
+    }
+
+    function deleteMatch(matchId) {
+      if (!matchId) return;
+      const matches = getMatchesWithIds();
+      const target = matches.find(m => m.id === matchId);
+      if (!target) return;
+
+      const isConfirmed = window.confirm(
+        `【${target.killer}】（結果: ${target.resultKills}キル / ${target.date}）の戦績を削除しますか？\nこの操作は取り消せません。`
+      );
+      if (!isConfirmed) return;
+
+      const nextMatches = matches.filter(m => m.id !== matchId);
+      localStorage.setItem('dbd_matches', JSON.stringify(nextMatches));
+      renderKillerQuickButtons();
+      loadHistory();
+    }
+
+    function loadHistory() {
+      const matches = getMatchesWithIds();
       const filteredMatches = getFilteredMatches(matches);
 
       updateStats(filteredMatches);
@@ -467,8 +555,15 @@
             <span class="history-meta">${escapeHtml(m.date)}</span>
           </div>
           <div style="font-size: 0.9rem; color: #bbb; margin-top: 4px;">1人目キル時: ${genText}</div>
-          <div style="margin-top: 6px;">${badges}</div>
+          <div style="margin-top: 6px; display: flex; justify-content: space-between; align-items: center;">
+            <div>${badges}</div>
+            <button type="button" class="delete-match-btn" data-id="${escapeHtml(m.id)}">🗑️ 削除</button>
+          </div>
         `;
+        const delBtn = li.querySelector('.delete-match-btn');
+        if (delBtn) {
+          delBtn.addEventListener('click', () => deleteMatch(m.id));
+        }
         historyList.appendChild(li);
       });
     }
@@ -745,7 +840,7 @@
       if (!quickArea || !killerInput) return;
 
       const favs = getFavorites();
-      const matches = JSON.parse(localStorage.getItem('dbd_matches') || '[]');
+      const matches = getMatchesWithIds();
       const recents = getRecentKillers(favs, matches);
       const currentNorm = normalizeKillerName(killerInput.value);
 
@@ -865,6 +960,7 @@
       const normalizedKiller = normalizeKillerName(rawKiller);
 
       const newMatch = {
+        id: generateMatchId(),
         killer: normalizedKiller || rawKiller,
         gensAtFirstKill: document.getElementById('gensAtFirstKill').value,
         resultKills: document.getElementById('resultKills').value,
@@ -872,7 +968,7 @@
         hasTunnel: document.getElementById('hasTunnel').checked,
         date: new Date().toLocaleDateString('ja-JP')
       };
-      const matches = JSON.parse(localStorage.getItem('dbd_matches') || '[]');
+      const matches = getMatchesWithIds();
       matches.push(newMatch);
       localStorage.setItem('dbd_matches', JSON.stringify(matches));
       form.reset();
@@ -885,6 +981,131 @@
     const recordBtn = document.getElementById('recordBtn');
     if (recordBtn) {
       recordBtn.addEventListener('click', handleRecordMatch);
+    }
+
+    function getBackupFilename(now = new Date()) {
+      const yyyy = now.getFullYear();
+      const mm = String(now.getMonth() + 1).padStart(2, '0');
+      const dd = String(now.getDate()).padStart(2, '0');
+      return `dbd_matches_backup_${yyyy}${mm}${dd}.json`;
+    }
+
+    function exportMatchesToJson() {
+      const matches = getMatchesWithIds();
+      if (matches.length === 0) {
+        alert('書き出す対戦データがありません');
+        return;
+      }
+      const jsonStr = JSON.stringify(matches, null, 2);
+      const blob = new Blob([jsonStr], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = getBackupFilename();
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    }
+
+    function validateImportedMatches(data) {
+      if (!Array.isArray(data)) return false;
+      const validGens = ['5', '4', '3', '2', '1', '0', 'none'];
+      for (const item of data) {
+        if (!item || typeof item !== 'object' || Array.isArray(item)) return false;
+        if (typeof item.killer !== 'string' || !item.killer.trim()) return false;
+        if (item.gensAtFirstKill === undefined || item.gensAtFirstKill === null) return false;
+        if (!validGens.includes(String(item.gensAtFirstKill))) return false;
+        if (item.resultKills === undefined || item.resultKills === null) return false;
+        const killsNum = Number(item.resultKills);
+        if (Number.isNaN(killsNum) || killsNum < 0 || killsNum > 4) return false;
+      }
+      return true;
+    }
+
+    function mergeImportedMatches(importedList) {
+      const existingMatches = getMatchesWithIds();
+      const matchMap = new Map();
+      existingMatches.forEach(m => {
+        matchMap.set(m.id, m);
+      });
+
+      importedList.forEach((item, idx) => {
+        const rawKiller = String(item.killer).trim();
+        const normalizedKiller = normalizeKillerName(rawKiller);
+        const matchId = (typeof item.id === 'string' && item.id.trim())
+          ? item.id.trim()
+          : `${Date.now().toString(36)}-imp-${idx}-${Math.random().toString(36).slice(2, 7)}`;
+
+        const normalizedRecord = {
+          id: matchId,
+          killer: normalizedKiller || rawKiller,
+          gensAtFirstKill: String(item.gensAtFirstKill),
+          resultKills: String(item.resultKills),
+          hasCamp: Boolean(item.hasCamp),
+          hasTunnel: Boolean(item.hasTunnel),
+          date: item.date ? String(item.date) : new Date().toLocaleDateString('ja-JP')
+        };
+        matchMap.set(matchId, normalizedRecord);
+      });
+
+      const merged = Array.from(matchMap.values());
+      localStorage.setItem('dbd_matches', JSON.stringify(merged));
+      renderKillerQuickButtons();
+      loadHistory();
+      return merged;
+    }
+
+    function handleImportJsonText(jsonText) {
+      let parsed;
+      try {
+        parsed = JSON.parse(jsonText);
+      } catch (err) {
+        alert('エラー: JSONファイルの解析に失敗しました。ファイル形式を確認してください。');
+        return false;
+      }
+
+      if (!validateImportedMatches(parsed)) {
+        alert('エラー: 不正なJSONデータ構造です。有効な対戦データ配列ではありません。');
+        return false;
+      }
+
+      const isConfirmed = window.confirm('ファイルを読み込んで対戦データを復元・追加しますか？');
+      if (!isConfirmed) {
+        return false;
+      }
+
+      mergeImportedMatches(parsed);
+      return true;
+    }
+
+    const exportJsonBtn = document.getElementById('exportJsonBtn');
+    if (exportJsonBtn) {
+      exportJsonBtn.addEventListener('click', exportMatchesToJson);
+    }
+
+    const importJsonBtn = document.getElementById('importJsonBtn');
+    const importJsonInput = document.getElementById('importJsonInput');
+    if (importJsonBtn && importJsonInput) {
+      importJsonBtn.addEventListener('click', () => {
+        importJsonInput.value = '';
+        importJsonInput.click();
+      });
+
+      importJsonInput.addEventListener('change', (e) => {
+        const file = e.target.files && e.target.files[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = (ev) => {
+          handleImportJsonText(String(ev.target.result || ''));
+          importJsonInput.value = '';
+        };
+        reader.onerror = () => {
+          alert('エラー: ファイルの読み込みに失敗しました。');
+          importJsonInput.value = '';
+        };
+        reader.readAsText(file);
+      });
     }
 
     loadHistory();
