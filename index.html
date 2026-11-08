@@ -224,6 +224,20 @@
       border-color: #e53935;
       color: #fff;
     }
+    .advice-list { display: flex; flex-direction: column; gap: 8px; margin-top: 8px; }
+    .advice-item {
+      background: #252525;
+      border: 1px solid #333;
+      border-left: 4px solid #00bcd4;
+      border-radius: 4px;
+      padding: 10px 12px;
+      font-size: 0.9rem;
+      line-height: 1.55;
+      color: #e0e0e0;
+    }
+    .advice-item.advice-info { border-left-color: #757575; color: #bbb; }
+    .advice-item.advice-positive { border-left-color: #00e5ff; }
+    .advice-item.advice-warning { border-left-color: #ff9800; }
   </style>
 </head>
 <body>
@@ -290,6 +304,16 @@
       </div>
     </div>
     <div id="filterStatus" style="font-size: 0.85rem; color: #aaa; margin-top: 6px;">表示中: すべてのキラー</div>
+  </div>
+
+  <div class="card" id="adviceCard">
+    <h2>立ち回り診断・アドバイス</h2>
+    <div id="adviceList" class="advice-list"></div>
+  </div>
+
+  <div class="card">
+    <h2>立ち回り診断・アドバイス</h2>
+    <div id="adviceList" class="advice-list"></div>
   </div>
 
   <div class="card">
@@ -512,6 +536,106 @@
       loadHistory();
     }
 
+    // ===== 立ち回り診断（固定テンプレート・条件分岐のみで制御） =====
+    function calcWinRate(list) {
+      if (!list || list.length === 0) return null;
+      const wins = list.filter(m => (Number(m.resultKills) || 0) >= 3).length;
+      return (wins / list.length) * 100;
+    }
+
+    function computeAdvice(matches) {
+      const total = matches.length;
+      const MIN_MATCHES = 3;
+      if (total < MIN_MATCHES) {
+        return [{
+          type: 'info',
+          text: `💡 【データ蓄積中】 現在の記録は ${total} 試合です。あと ${MIN_MATCHES - total} 試合記録すると、立ち回り傾向の自動診断が表示されます。`
+        }];
+      }
+
+      const fmt = (v) => v.toFixed(1);
+      const advice = [];
+      const overallWinRate = calcWinRate(matches);
+      const totalKills = matches.reduce((s, m) => s + (Number(m.resultKills) || 0), 0);
+      const avgKills = (totalKills / total).toFixed(2);
+
+      // ケース1-A: 残り3台以上でファーストキル
+      const earlyMatches = matches.filter(m => ['5', '4', '3'].includes(String(m.gensAtFirstKill)));
+      const earlyWinRate = calcWinRate(earlyMatches);
+      if (earlyWinRate !== null && earlyWinRate >= 70) {
+        advice.push({
+          type: 'positive',
+          text: `⚡ 【序盤の圧力が強力】 残り発電機3台以上で1人目を撃破できた試合の勝率は ${fmt(earlyWinRate)}% です！序盤の迅速な1人落としが勝利の決定打になっています。`
+        });
+      }
+
+      // ケース1-B: 残り0〜1台（合算）が他の各区分（5/4/3/2台）以上、かつ全体勝率50%以上
+      const countGen = (g) => matches.filter(m => String(m.gensAtFirstKill) === g).length;
+      const lateCount = countGen('0') + countGen('1');
+      const otherMax = Math.max(countGen('5'), countGen('4'), countGen('3'), countGen('2'));
+      if (lateCount > 0 && lateCount >= otherMax && overallWinRate >= 50) {
+        advice.push({
+          type: 'positive',
+          text: `⏳ 【粘り強い終盤重視タイプ】 1人目の撃破が発電機残り0〜1台までもつれ込む傾向がありますが、勝率は ${fmt(overallWinRate)}% を維持できています。通電間際の立ち回りで着実に巻き返せています。`
+        });
+      }
+
+      // 戦術別
+      const tacticsMatches = matches.filter(m => Boolean(m.hasCamp) || Boolean(m.hasTunnel));
+      const noTacticsMatches = matches.filter(m => !Boolean(m.hasCamp) && !Boolean(m.hasTunnel));
+      const tacticsWinRate = calcWinRate(tacticsMatches);
+      const noTacticsWinRate = calcWinRate(noTacticsMatches);
+
+      // ケース2-A
+      if (tacticsWinRate !== null && noTacticsWinRate !== null && (tacticsWinRate - noTacticsWinRate) >= 25) {
+        advice.push({
+          type: 'positive',
+          text: `🎯 【戦術介入の効果が顕著】 キャンプ/トンネルあり時の勝率（${fmt(tacticsWinRate)}%）が、なし時（${fmt(noTacticsWinRate)}%）を大きく上回っています。状況に応じた戦術的な人数減らしが非常に有効に機能しています。`
+        });
+      }
+
+      // ケース2-B
+      if (noTacticsWinRate !== null && noTacticsWinRate >= 65) {
+        advice.push({
+          type: 'positive',
+          text: `🛡️ 【高い基礎盤面管理力】 キャンプ・トンネルを行わない試合でも勝率 ${fmt(noTacticsWinRate)}% を達成しています！チェイス力と発電機巡回のみで盤面を支配できています。`
+        });
+      }
+
+      // ケース2-C
+      if (tacticsWinRate !== null && tacticsWinRate < 40) {
+        advice.push({
+          type: 'warning',
+          text: `🔄 【立ち回りの切り替えを推奨】 キャンプ/トンネルを適用した試合の勝率が ${fmt(tacticsWinRate)}% に留まっています。無理なフック維持よりも、他サバイバーへの負傷ばら撒きや発電機遅延に立ち回りを切り替える方が効果的な可能性があります。`
+        });
+      }
+
+      // ケース3-A
+      if (overallWinRate >= 75) {
+        advice.push({
+          type: 'positive',
+          text: `🏆 【圧倒的な勝率】 通算勝率 ${fmt(overallWinRate)}%（平均キル数 ${avgKills}）を記録中。極めて安定した立ち回りができています！`
+        });
+      }
+
+      if (advice.length === 0) {
+        advice.push({ type: 'info', text: '現在、該当する診断はありません' });
+      }
+      return advice;
+    }
+
+    function renderAdvice(matches) {
+      const adviceList = document.getElementById('adviceList');
+      if (!adviceList) return;
+      adviceList.innerHTML = '';
+      computeAdvice(matches).forEach(a => {
+        const div = document.createElement('div');
+        div.className = `advice-item advice-${a.type}`;
+        div.textContent = a.text;
+        adviceList.appendChild(div);
+      });
+    }
+
     function loadHistory() {
       const matches = getMatchesWithIds();
       const filteredMatches = getFilteredMatches(matches);
@@ -519,6 +643,7 @@
       updateStats(filteredMatches);
       updateTacticsStats(filteredMatches);
       updateFilterStatus(matches.length, filteredMatches.length);
+      renderAdvice(filteredMatches);
 
       if (filteredMatches.length === 0) {
         if (currentFilterKiller) {
