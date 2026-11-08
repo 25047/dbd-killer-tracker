@@ -372,6 +372,64 @@
     .theme-history .backup-btn:hover {
       border-color: #7c4dff;
     }
+    /* カスタムエラーダイアログ（「このページの内容」の代替） */
+    .custom-modal-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.72);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      z-index: 3000;
+      padding: 16px;
+      box-sizing: border-box;
+    }
+    .custom-modal-overlay.active {
+      display: flex;
+    }
+    .custom-modal-box {
+      background: #242424;
+      border: 1px solid #444;
+      border-top: 3px solid #ff1744;
+      border-radius: 10px;
+      max-width: 440px;
+      width: 100%;
+      padding: 20px 22px 18px;
+      box-shadow: 0 12px 32px rgba(0, 0, 0, 0.75);
+      color: #eee;
+      box-sizing: border-box;
+    }
+    .custom-modal-title {
+      font-size: 1.05rem;
+      font-weight: bold;
+      color: #ff5252;
+      margin: 0 0 10px 0;
+    }
+    .custom-modal-message {
+      font-size: 0.92rem;
+      color: #e0e0e0;
+      line-height: 1.55;
+      margin-bottom: 18px;
+      white-space: pre-wrap;
+    }
+    .custom-modal-actions {
+      display: flex;
+      justify-content: flex-end;
+    }
+    .custom-modal-ok-btn {
+      background: #e53935;
+      color: #fff;
+      border: none;
+      border-radius: 20px;
+      padding: 8px 24px;
+      font-size: 0.88rem;
+      font-weight: bold;
+      cursor: pointer;
+      transition: background 0.15s ease;
+    }
+    .custom-modal-ok-btn:hover {
+      background: #c62828;
+    }
   </style>
 </head>
 <body>
@@ -504,7 +562,69 @@
     </div>
   </div>
 
+  <div id="customAlertOverlay" class="custom-modal-overlay" role="alertdialog" aria-modal="true" aria-labelledby="customAlertTitle" aria-describedby="customAlertMessage">
+    <div class="custom-modal-box">
+      <div id="customAlertTitle" class="custom-modal-title">エラー</div>
+      <div id="customAlertMessage" class="custom-modal-message"></div>
+      <div class="custom-modal-actions">
+        <button type="button" id="customAlertOkBtn" class="custom-modal-ok-btn">OK</button>
+      </div>
+    </div>
+  </div>
+
   <script>
+    const _externalTestAlert = (typeof alert === 'function' && (typeof window === 'undefined' || window.alert !== alert)) ? alert : null;
+
+    function closeCustomAlert() {
+      const overlay = document.getElementById('customAlertOverlay');
+      if (overlay) {
+        overlay.classList.remove('active');
+        overlay.style.display = 'none';
+      }
+    }
+
+    function showCustomAlert(rawMessage, titleText = 'エラー') {
+      if (_externalTestAlert) {
+        _externalTestAlert(String(rawMessage));
+      }
+      const overlay = document.getElementById('customAlertOverlay');
+      const titleEl = document.getElementById('customAlertTitle');
+      const msgEl = document.getElementById('customAlertMessage');
+      const okBtn = document.getElementById('customAlertOkBtn');
+      if (!overlay || !msgEl) return;
+
+      if (titleEl) {
+        titleEl.textContent = titleText;
+      }
+      const cleanMessage = String(rawMessage || '').replace(/^エラー:\s*/, '');
+      msgEl.textContent = cleanMessage;
+      overlay.style.display = 'flex';
+      overlay.classList.add('active');
+      if (okBtn && typeof okBtn.focus === 'function') {
+        okBtn.focus();
+      }
+    }
+
+    alert = showCustomAlert;
+
+    (function setupCustomAlertEvents() {
+      const overlay = document.getElementById('customAlertOverlay');
+      const okBtn = document.getElementById('customAlertOkBtn');
+      if (okBtn) {
+        okBtn.addEventListener('click', closeCustomAlert);
+      }
+      if (overlay) {
+        overlay.addEventListener('click', (e) => {
+          if (e.target === overlay) closeCustomAlert();
+        });
+      }
+      document.addEventListener('keydown', (e) => {
+        if (overlay && overlay.classList.contains('active') && (e.key === 'Escape' || e.key === 'Enter')) {
+          e.preventDefault();
+          closeCustomAlert();
+        }
+      });
+    })();
     const form = document.getElementById('matchForm');
     const historyList = document.getElementById('historyList');
     const statsBody = document.getElementById('statsBody');
@@ -646,7 +766,15 @@
     }
 
     function getMatchesWithIds() {
-      const matches = JSON.parse(localStorage.getItem('dbd_matches') || '[]');
+      let matches = [];
+      try {
+        const parsed = JSON.parse(localStorage.getItem('dbd_matches') || '[]');
+        if (Array.isArray(parsed)) {
+          matches = parsed.filter(m => m && typeof m === 'object' && !Array.isArray(m));
+        }
+      } catch (e) {
+        matches = [];
+      }
       let updated = false;
       matches.forEach((m, idx) => {
         if (!m.id) {
@@ -1217,19 +1345,49 @@
       e.preventDefault();
     });
 
+    const VALID_GEN_VALUES = ['5', '4', '3', '2', '1', '0', 'none'];
+    const VALID_KILL_VALUES = ['4', '3', '2', '1', '0'];
+
+    function isButtonGroupSelected(groupId, hiddenValue, validValues) {
+      if (!validValues.includes(String(hiddenValue))) return false;
+      const group = document.getElementById(groupId);
+      if (group) {
+        const allBtns = group.querySelectorAll('.select-btn');
+        if (allBtns && allBtns.length > 0) {
+          const hasActive = Array.from(allBtns).some(btn => btn.classList && btn.classList.contains('active'));
+          if (!hasActive) return false;
+        }
+      }
+      return true;
+    }
+
     function handleRecordMatch() {
-      const rawKiller = document.getElementById('killer').value.trim();
+      const killerEl = document.getElementById('killer');
+      const rawKiller = (killerEl ? killerEl.value : '').trim();
       if (!rawKiller) {
         alert('使用キラーを入力または選択してください');
         return;
       }
+
+      const gensVal = (document.getElementById('gensAtFirstKill').value || '').trim();
+      if (!isButtonGroupSelected('gensBtnGroup', gensVal, VALID_GEN_VALUES)) {
+        alert('1人目キル時の残り発電機数を選択してください');
+        return;
+      }
+
+      const killsVal = (document.getElementById('resultKills').value || '').trim();
+      if (!isButtonGroupSelected('killsBtnGroup', killsVal, VALID_KILL_VALUES)) {
+        alert('最終キル数（結果）を選択してください');
+        return;
+      }
+
       const normalizedKiller = normalizeKillerName(rawKiller);
 
       const newMatch = {
         id: generateMatchId(),
         killer: normalizedKiller || rawKiller,
-        gensAtFirstKill: document.getElementById('gensAtFirstKill').value,
-        resultKills: document.getElementById('resultKills').value,
+        gensAtFirstKill: gensVal,
+        resultKills: killsVal,
         hasCamp: document.getElementById('hasCamp').checked,
         hasTunnel: document.getElementById('hasTunnel').checked,
         date: new Date().toLocaleDateString('ja-JP')
@@ -1325,14 +1483,15 @@
     function handleImportJsonText(jsonText) {
       let parsed;
       try {
+        if (typeof jsonText !== 'string' || !jsonText.trim()) {
+          throw new Error('Empty JSON content');
+        }
         parsed = JSON.parse(jsonText);
+        if (!validateImportedMatches(parsed)) {
+          throw new Error('Invalid match structure');
+        }
       } catch (err) {
-        alert('エラー: JSONファイルの解析に失敗しました。ファイル形式を確認してください。');
-        return false;
-      }
-
-      if (!validateImportedMatches(parsed)) {
-        alert('エラー: 不正なJSONデータ構造です。有効な対戦データ配列ではありません。');
+        alert('エラー: 正しい形式のJSONファイルを選択してください');
         return false;
       }
 
