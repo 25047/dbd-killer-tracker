@@ -240,28 +240,36 @@
     .advice-item.advice-warning { border-left-color: #ff9800; }
     /* メインタブナビゲーション */
     .main-tabs {
-      display: grid;
-      grid-template-columns: repeat(3, 1fr);
+      display: flex;
       gap: 8px;
       margin-bottom: 18px;
       background: #181818;
       padding: 6px;
       border-radius: 8px;
       border: 1px solid #2e2e2e;
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+      scrollbar-width: thin;
     }
     .tab-btn {
+      flex: 1 0 auto;
+      min-height: 44px;
       background: #222;
       color: #aaa;
       border: 1px solid #333;
       border-bottom: 3px solid transparent;
       border-radius: 6px;
-      padding: 10px 6px;
+      padding: 10px 10px;
       font-size: 0.9rem;
       font-weight: bold;
       cursor: pointer;
       transition: all 0.18s ease;
       text-align: center;
       white-space: nowrap;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      box-sizing: border-box;
     }
     .tab-btn:hover {
       background: #2b2b2b;
@@ -430,6 +438,121 @@
     .custom-modal-ok-btn:hover {
       background: #c62828;
     }
+    /* テーブル用レスポンシブコンテナ（横スクロール対応） */
+    .table-responsive {
+      width: 100%;
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+      margin-top: 10px;
+    }
+    .table-responsive table {
+      margin-top: 0;
+      min-width: 420px;
+    }
+    .table-responsive th,
+    .table-responsive td {
+      white-space: nowrap;
+    }
+    /* スマートフォン表示（幅 768px 以下）のレイアウト最適化 */
+    @media (max-width: 768px) {
+      body {
+        margin: 14px auto;
+        padding: 0 12px;
+      }
+      h1 {
+        font-size: 1.35rem;
+        line-height: 1.35;
+        margin-bottom: 14px;
+      }
+      .card {
+        padding: 14px;
+        margin-bottom: 16px;
+      }
+      .card > h2,
+      .card-header-bar {
+        margin: -14px -14px 12px -14px;
+        padding: 10px 14px;
+        font-size: 1rem;
+      }
+      .card-header-bar {
+        flex-wrap: wrap;
+        gap: 8px;
+      }
+      .tab-btn {
+        min-height: 44px;
+        padding: 10px 12px;
+        font-size: 0.88rem;
+      }
+      .select-btn {
+        min-height: 44px;
+        padding: 10px 6px;
+        font-size: 0.92rem;
+      }
+      .killer-quick-btn {
+        min-height: 42px;
+        padding: 8px 12px;
+        font-size: 0.9rem;
+      }
+      .delete-match-btn {
+        min-height: 36px;
+        padding: 6px 12px;
+        font-size: 0.82rem;
+      }
+      .reset-filter-btn {
+        min-height: 36px;
+        padding: 6px 12px;
+      }
+      .submit-btn,
+      .backup-btn {
+        min-height: 46px;
+        font-size: 0.95rem;
+      }
+      .checkbox-label {
+        min-height: 40px;
+      }
+    }
+    /* PC・大画面表示（幅 769px 以上）のレイアウト最適化 */
+    @media (min-width: 769px) {
+      body {
+        max-width: 760px;
+        margin: 28px auto;
+        padding: 0 24px;
+        font-size: 16px;
+      }
+      h1 {
+        font-size: 1.75rem;
+        margin-bottom: 20px;
+      }
+      .card {
+        padding: 22px 24px;
+        margin-bottom: 24px;
+      }
+      .card > h2,
+      .card-header-bar {
+        margin: -22px -24px 18px -24px;
+        padding: 13px 24px;
+        font-size: 1.12rem;
+      }
+      .card-header-bar h2 {
+        font-size: 1.12rem;
+      }
+      th, td {
+        padding: 10px 14px;
+        font-size: 0.98rem;
+      }
+      .select-btn {
+        min-height: 44px;
+        font-size: 0.95rem;
+      }
+      .killer-quick-btn {
+        min-height: 40px;
+        padding: 8px 14px;
+      }
+      .submit-btn {
+        min-height: 46px;
+        font-size: 1rem;
+      }
+    }
   </style>
 </head>
 <body>
@@ -514,34 +637,38 @@
 
     <div class="card">
       <h2>残り発電機ごとの戦績分析</h2>
-      <table id="statsTable">
-        <thead>
-          <tr>
-            <th style="text-align: left;">1人目キル時</th>
-            <th>試合数</th>
-            <th>平均キル</th>
-            <th>勝率 (3K+)</th>
-            <th>勝率 (4K)</th>
-          </tr>
-        </thead>
-        <tbody id="statsBody"></tbody>
-      </table>
+      <div class="table-responsive">
+        <table id="statsTable">
+          <thead>
+            <tr>
+              <th style="text-align: left;">1人目キル時</th>
+              <th>試合数</th>
+              <th>平均キル</th>
+              <th>勝率 (3K+)</th>
+              <th>勝率 (4K)</th>
+            </tr>
+          </thead>
+          <tbody id="statsBody"></tbody>
+        </table>
+      </div>
     </div>
 
     <div class="card">
       <h2>戦術別戦績分析（キャンプ / トンネル）</h2>
-      <table id="tacticsStatsTable">
-        <thead>
-          <tr>
-            <th style="text-align: left;">戦術</th>
-            <th>試合数</th>
-            <th>平均キル</th>
-            <th>勝率 (3K+)</th>
-            <th>勝率 (4K)</th>
-          </tr>
-        </thead>
-        <tbody id="tacticsStatsBody"></tbody>
-      </table>
+      <div class="table-responsive">
+        <table id="tacticsStatsTable">
+          <thead>
+            <tr>
+              <th style="text-align: left;">戦術</th>
+              <th>試合数</th>
+              <th>平均キル</th>
+              <th>勝率 (3K+)</th>
+              <th>勝率 (4K)</th>
+            </tr>
+          </thead>
+          <tbody id="tacticsStatsBody"></tbody>
+        </table>
+      </div>
     </div>
   </div>
 
