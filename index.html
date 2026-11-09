@@ -585,6 +585,49 @@
       border-width: 1px;
       transform: translateY(0);
     }
+    /* 分析期間切り替えトグル & 成長推移サマリー */
+    .period-toggle-group {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 8px;
+      margin-top: 10px;
+    }
+    .period-toggle-btn {
+      min-height: 40px;
+      padding: 8px 10px;
+      border-radius: 4px;
+      border: 1px solid #444;
+      background: #252525;
+      color: #ccc;
+      font-size: 0.88rem;
+      font-weight: bold;
+      cursor: pointer;
+      transition: all 0.15s ease;
+      text-align: center;
+      box-sizing: border-box;
+    }
+    .period-toggle-btn:hover {
+      background: #323232;
+      color: #fff;
+      border-color: #666;
+    }
+    .period-toggle-btn.active {
+      background: rgba(0, 229, 255, 0.16);
+      color: #fff;
+      border-color: #00e5ff;
+      box-shadow: 0 0 10px rgba(0, 229, 255, 0.45);
+    }
+    .period-comparison-status {
+      margin-top: 8px;
+      padding: 8px 10px;
+      background: #22282a;
+      border: 1px solid #2f3d42;
+      border-left: 3px solid #00e5ff;
+      border-radius: 4px;
+      font-size: 0.86rem;
+      color: #A5E9E9;
+      font-weight: bold;
+    }
   </style>
 </head>
 <body>
@@ -665,7 +708,12 @@
           <div id="filterSuggestList" class="suggest-dropdown"></div>
         </div>
       </div>
+      <div class="period-toggle-group" id="periodToggleGroup">
+        <button type="button" id="periodAllBtn" class="period-toggle-btn active" data-period="all">すべて（全期間）</button>
+        <button type="button" id="periodRecent10Btn" class="period-toggle-btn" data-period="recent10">直近10試合</button>
+      </div>
       <div id="filterStatus" style="font-size: 0.85rem; color: #aaa; margin-top: 6px;">表示中: すべてのキラー</div>
+      <div id="periodComparisonStatus" class="period-comparison-status">通算勝率: - ➔ 直近10試合: -</div>
     </div>
 
     <div class="card">
@@ -898,11 +946,44 @@
     }
 
     let currentFilterKiller = '';
+    let currentPeriodMode = 'all';
 
     function getFilteredMatches(allMatches) {
       if (!currentFilterKiller) return allMatches;
       const normalizedFilter = normalizeKillerName(currentFilterKiller);
       return allMatches.filter(m => normalizeKillerName(m.killer) === normalizedFilter);
+    }
+
+    function getPeriodFilteredMatches(filteredMatches) {
+      if (currentPeriodMode === 'recent10') {
+        return filteredMatches.slice(-10);
+      }
+      return filteredMatches;
+    }
+
+    function updatePeriodComparisonStatus(filteredMatches) {
+      const compEl = document.getElementById('periodComparisonStatus');
+      if (!compEl) return;
+      if (!filteredMatches || filteredMatches.length === 0) {
+        compEl.textContent = '通算勝率: - ➔ 直近10試合: -';
+        return;
+      }
+      const overallWinRate = calcWinRate(filteredMatches);
+      const recentMatches = filteredMatches.slice(-10);
+      const recentWinRate = calcWinRate(recentMatches);
+      if (overallWinRate === null || recentWinRate === null) {
+        compEl.textContent = '通算勝率: - ➔ 直近10試合: -';
+        return;
+      }
+      const diff = recentWinRate - overallWinRate;
+      const roundedDiff = Number(diff.toFixed(1));
+      let diffLabel = '➡️ ±0.0%';
+      if (roundedDiff > 0) {
+        diffLabel = `📈 +${diff.toFixed(1)}%`;
+      } else if (roundedDiff < 0) {
+        diffLabel = `📉 ${diff.toFixed(1)}%`;
+      }
+      compEl.textContent = `通算勝率: ${overallWinRate.toFixed(1)}% ➔ 直近10試合: ${recentWinRate.toFixed(1)}% (${diffLabel})`;
     }
 
     function updateFilterStatus(totalCount, filteredCount) {
@@ -1068,11 +1149,13 @@
     function loadHistory() {
       const matches = getMatchesWithIds();
       const filteredMatches = getFilteredMatches(matches);
+      const analyticsMatches = getPeriodFilteredMatches(filteredMatches);
 
-      updateStats(filteredMatches);
-      updateTacticsStats(filteredMatches);
+      updateStats(analyticsMatches);
+      updateTacticsStats(analyticsMatches);
       updateFilterStatus(matches.length, filteredMatches.length);
-      renderAdvice(filteredMatches);
+      updatePeriodComparisonStatus(filteredMatches);
+      renderAdvice(analyticsMatches);
 
       if (filteredMatches.length === 0) {
         if (currentFilterKiller) {
@@ -1525,11 +1608,32 @@
       }
     });
 
+    function setPeriodMode(mode, shouldReload = true) {
+      currentPeriodMode = mode === 'recent10' ? 'recent10' : 'all';
+      const allBtn = document.getElementById('periodAllBtn');
+      const recent10Btn = document.getElementById('periodRecent10Btn');
+      if (allBtn) allBtn.classList.toggle('active', currentPeriodMode === 'all');
+      if (recent10Btn) recent10Btn.classList.toggle('active', currentPeriodMode === 'recent10');
+      if (shouldReload) {
+        loadHistory();
+      }
+    }
+
+    const periodAllBtn = document.getElementById('periodAllBtn');
+    const periodRecent10Btn = document.getElementById('periodRecent10Btn');
+    if (periodAllBtn) {
+      periodAllBtn.addEventListener('click', () => setPeriodMode('all'));
+    }
+    if (periodRecent10Btn) {
+      periodRecent10Btn.addEventListener('click', () => setPeriodMode('recent10'));
+    }
+
     const filterKillerInput = document.getElementById('filterKiller');
     document.getElementById('resetFilterBtn').addEventListener('click', () => {
       filterKillerInput.value = '';
       currentFilterKiller = '';
       if (filterSuggestInstance) filterSuggestInstance.hide();
+      setPeriodMode('all', false);
       loadHistory();
     });
 
