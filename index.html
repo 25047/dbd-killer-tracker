@@ -717,6 +717,7 @@
           <div id="filterSuggestList" class="suggest-dropdown"></div>
         </div>
       </div>
+      <div id="filterFavoriteKillers" class="killer-quick-container" style="margin-top: 8px; margin-bottom: 4px;"></div>
       <div class="period-toggle-group" id="periodToggleGroup">
         <button type="button" id="periodAllBtn" class="period-toggle-btn active" data-period="all">すべて（全期間）</button>
         <button type="button" id="periodRecent10Btn" class="period-toggle-btn" data-period="recent10">直近10試合</button>
@@ -1173,6 +1174,7 @@
       updateFilterStatus(matches.length, filteredMatches.length);
       updatePeriodComparisonStatus(filteredMatches);
       renderAdvice(analyticsMatches);
+      renderFilterQuickButtons();
 
       if (filteredMatches.length === 0) {
         if (currentFilterKiller) {
@@ -1571,6 +1573,62 @@
           selectKiller(info.name);
         });
         quickArea.appendChild(btn);
+      });
+
+      renderFilterQuickButtons();
+    }
+
+    function toggleFilterKiller(name) {
+      const filterInput = document.getElementById('filterKiller');
+      const currentNorm = normalizeKillerName(currentFilterKiller);
+      const targetNorm = normalizeKillerName(name);
+
+      if (currentNorm && currentNorm === targetNorm) {
+        if (filterInput) filterInput.value = '';
+        currentFilterKiller = '';
+      } else {
+        if (filterInput) filterInput.value = targetNorm;
+        currentFilterKiller = targetNorm;
+      }
+      if (typeof filterSuggestInstance !== 'undefined' && filterSuggestInstance) {
+        filterSuggestInstance.hide();
+      }
+      loadHistory();
+    }
+
+    function renderFilterQuickButtons() {
+      const filterQuickArea = document.getElementById('filterFavoriteKillers');
+      if (!filterQuickArea) return;
+
+      const favs = getFavorites();
+      const matches = getMatchesWithIds();
+      const recents = getRecentKillers(favs, matches);
+      const currentNorm = normalizeKillerName(currentFilterKiller);
+
+      filterQuickArea.innerHTML = '';
+
+      favs.forEach(kName => {
+        const info = getKillerInfo(kName);
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'killer-quick-btn' + (currentNorm === info.name ? ' active' : '');
+        btn.innerHTML = `<span style="color:#ffd700;font-size:0.75rem;">★</span> ${info.emoji} ${info.name}`;
+        btn.addEventListener('click', () => {
+          toggleFilterKiller(info.name);
+        });
+        filterQuickArea.appendChild(btn);
+      });
+
+      recents.forEach(kName => {
+        const info = getKillerInfo(kName);
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'killer-quick-btn' + (currentNorm === info.name ? ' active' : '');
+        btn.innerHTML = `<span style="color:#888;font-size:0.75rem;">🕒</span> ${info.emoji} ${info.name}`;
+        btn.addEventListener('click', () => {
+          toggleFilterKiller(info.name);
+        });
+        filterQuickArea.appendChild(btn);
       });
     }
 
