@@ -628,6 +628,15 @@
       color: #A5E9E9;
       font-weight: bold;
     }
+    /* 分析テーブルセル内のバーチャート表示 */
+    .rate-cell-3k {
+      background: linear-gradient(90deg, rgba(0, 229, 255, 0.22) var(--rate, 0%), transparent var(--rate, 0%));
+      color: #eee;
+    }
+    .rate-cell-4k {
+      background: linear-gradient(90deg, rgba(0, 188, 212, 0.30) var(--rate, 0%), transparent var(--rate, 0%));
+      color: #eee;
+    }
   </style>
 </head>
 <body>
@@ -892,15 +901,19 @@
         const tr = document.createElement('tr');
 
         const avgKills = data.count > 0 ? (data.totalKills / data.count).toFixed(2) : '-';
-        const winRate = data.count > 0 ? ((data.wins / data.count) * 100).toFixed(1) + '%' : '-';
-        const winRate4 = data.count > 0 ? ((data.wins4 / data.count) * 100).toFixed(1) + '%' : '-';
+        const rate3k = data.count > 0 ? (data.wins / data.count) * 100 : 0;
+        const rate4k = data.count > 0 ? (data.wins4 / data.count) * 100 : 0;
+        const winRate = data.count > 0 ? rate3k.toFixed(1) + '%' : '-';
+        const winRate4 = data.count > 0 ? rate4k.toFixed(1) + '%' : '-';
+        const cell3kAttr = data.count > 0 ? ` class="rate-cell-3k" style="--rate: ${rate3k.toFixed(1)}%;"` : '';
+        const cell4kAttr = data.count > 0 ? ` class="rate-cell-4k" style="--rate: ${rate4k.toFixed(1)}%;"` : '';
 
         tr.innerHTML = `
           <td style="text-align: left;">${cat.label}</td>
           <td>${data.count}</td>
           <td>${avgKills}</td>
-          <td>${winRate}</td>
-          <td>${winRate4}</td>
+          <td${cell3kAttr}>${winRate}</td>
+          <td${cell4kAttr}>${winRate4}</td>
         `;
         statsBody.appendChild(tr);
       });
@@ -930,16 +943,20 @@
         });
 
         const avgKills = count > 0 ? (totalKills / count).toFixed(2) : '-';
-        const winRate = count > 0 ? ((wins / count) * 100).toFixed(1) + '%' : '-';
-        const winRate4 = count > 0 ? ((wins4 / count) * 100).toFixed(1) + '%' : '-';
+        const rate3k = count > 0 ? (wins / count) * 100 : 0;
+        const rate4k = count > 0 ? (wins4 / count) * 100 : 0;
+        const winRate = count > 0 ? rate3k.toFixed(1) + '%' : '-';
+        const winRate4 = count > 0 ? rate4k.toFixed(1) + '%' : '-';
+        const cell3kAttr = count > 0 ? ` class="rate-cell-3k" style="--rate: ${rate3k.toFixed(1)}%;"` : '';
+        const cell4kAttr = count > 0 ? ` class="rate-cell-4k" style="--rate: ${rate4k.toFixed(1)}%;"` : '';
 
         const tr = document.createElement('tr');
         tr.innerHTML = `
           <td style="text-align: left;">${cat.label}</td>
           <td>${count}</td>
           <td>${avgKills}</td>
-          <td>${winRate}</td>
-          <td>${winRate4}</td>
+          <td${cell3kAttr}>${winRate}</td>
+          <td${cell4kAttr}>${winRate4}</td>
         `;
         tacticsStatsBody.appendChild(tr);
       });
