@@ -553,6 +553,38 @@
         font-size: 1rem;
       }
     }
+    /* 記録完了トースト通知 */
+    .record-toast {
+      margin-top: 10px;
+      padding: 10px 14px;
+      border-radius: 6px;
+      background: #192b22;
+      border: 1px solid #00e676;
+      color: #b9f6ca;
+      font-size: 0.9rem;
+      font-weight: bold;
+      text-align: center;
+      box-shadow: 0 4px 12px rgba(0, 230, 118, 0.2);
+      opacity: 0;
+      max-height: 0;
+      overflow: hidden;
+      padding-top: 0;
+      padding-bottom: 0;
+      margin-top: 0;
+      border-width: 0;
+      pointer-events: none;
+      transform: translateY(-4px);
+      transition: opacity 0.25s ease, transform 0.25s ease, max-height 0.25s ease, margin-top 0.25s ease, padding 0.25s ease;
+    }
+    .record-toast.show {
+      opacity: 1;
+      max-height: 60px;
+      padding-top: 10px;
+      padding-bottom: 10px;
+      margin-top: 10px;
+      border-width: 1px;
+      transform: translateY(0);
+    }
   </style>
 </head>
 <body>
@@ -611,6 +643,7 @@
         </div>
 
         <button type="button" id="recordBtn" class="submit-btn">戦績を記録</button>
+        <div id="recordToast" class="record-toast" role="status" aria-live="polite">✅ 戦績を記録しました</div>
       </form>
     </div>
   </div>
@@ -1089,6 +1122,20 @@
       });
     }
 
+    function setSelectButtonGroupValue(groupId, hiddenInputId, targetValue) {
+      const hiddenInput = document.getElementById(hiddenInputId);
+      if (hiddenInput) {
+        hiddenInput.value = String(targetValue);
+      }
+      const group = document.getElementById(groupId);
+      if (group) {
+        const buttons = group.querySelectorAll('.select-btn');
+        buttons.forEach(b => {
+          b.classList.toggle('active', b.dataset.value === String(targetValue));
+        });
+      }
+    }
+
     function setupSelectButtonGroup(groupId, hiddenInputId) {
       const group = document.getElementById(groupId);
       const hiddenInput = document.getElementById(hiddenInputId);
@@ -1096,9 +1143,29 @@
 
       buttons.forEach(btn => {
         btn.addEventListener('click', () => {
+          const val = String(btn.dataset.value);
           buttons.forEach(b => b.classList.remove('active'));
           btn.classList.add('active');
-          hiddenInput.value = btn.dataset.value;
+          hiddenInput.value = val;
+
+          // 双方向自動連動（論理的矛盾の防止）
+          if (groupId === 'gensBtnGroup') {
+            const killsInput = document.getElementById('resultKills');
+            const currentKills = killsInput ? String(killsInput.value) : '';
+            if (val === 'none') {
+              setSelectButtonGroupValue('killsBtnGroup', 'resultKills', '0');
+            } else if (currentKills === '0') {
+              setSelectButtonGroupValue('killsBtnGroup', 'resultKills', '4');
+            }
+          } else if (groupId === 'killsBtnGroup') {
+            const gensInput = document.getElementById('gensAtFirstKill');
+            const currentGens = gensInput ? String(gensInput.value) : '';
+            if (val === '0') {
+              setSelectButtonGroupValue('gensBtnGroup', 'gensAtFirstKill', 'none');
+            } else if (currentGens === 'none') {
+              setSelectButtonGroupValue('gensBtnGroup', 'gensAtFirstKill', '5');
+            }
+          }
         });
       });
     }
@@ -1153,13 +1220,13 @@
       { name: 'ゼノモーフ', emoji: '👽', aliases: ['ゼノモーフ', 'エイリアン'] },
       { name: 'グッドガイ', emoji: '🪆', aliases: ['グッドガイ', 'チャッキー'] },
       { name: 'アンノウン', emoji: '😈', aliases: ['アンノウン'] },
-      { name: 'リッチ', emoji: '🧙', aliases: ['リッチ', 'ヴェクナ'] },
+      { name: 'リッチ', emoji: '🧙', aliases: ['リッチ', 'D&Dヴェクナ', 'ヴェクナ(リッチ)'] },
       { name: 'ダークロード', emoji: '🧛', aliases: ['ダークロード', 'ドラキュラ'] },
       { name: 'ハウンドマスター', emoji: '🐕', aliases: ['ハウンドマスター'] },
       { name: '喰種', emoji: '🗼', aliases: ['喰種', '金木'] },
       { name: 'アニマトロニック', emoji: '🍕', aliases: ['アニマトロニック', 'スプリングトラップ'] },
       { name: 'ガスー', emoji: '🫁', aliases: ['ガスー'] },
-      { name: 'ファースト', emoji: '🕰️', aliases: ['ファースト', 'ヴェクナ'] },
+      { name: 'ファースト', emoji: '🕰️', aliases: ['ファースト', 'STヴェクナ', 'ヘンリー', '001', 'ヴェクナ(ファースト)'] },
       { name: 'スラッシャー', emoji: '🏒', aliases: ['スラッシャー', 'ジェイソン'] },
       { name: 'ジャッジメント', emoji: '👼', aliases: ['ジャッジメント'] }
     ];
@@ -1167,13 +1234,21 @@
     function normalizeKillerName(input) {
       if (!input) return '';
       const str = input.trim();
-      const exact = KILLER_LIST.find(k => k.name === str);
-      if (exact) return exact.name;
+      if (!str) return '';
 
+      // 1. 全キラーの name との「完全一致」
+      const exactName = KILLER_LIST.find(k => k.name === str);
+      if (exactName) return exactName.name;
+
+      // 2. 全キラーの aliases 内の要素との「完全一致」
+      const exactAlias = KILLER_LIST.find(k => k.aliases.includes(str));
+      if (exactAlias) return exactAlias.name;
+
+      // 3. 上記に該当しない場合のみ、name または aliases との「部分一致」
       for (const k of KILLER_LIST) {
-        if (str.includes(k.name)) return k.name;
+        if (str.includes(k.name) || k.name.includes(str)) return k.name;
         for (const alias of k.aliases) {
-          if (str.includes(alias)) return k.name;
+          if (str.includes(alias) || alias.includes(str)) return k.name;
         }
       }
       return str;
@@ -1488,6 +1563,14 @@
       return true;
     }
 
+    function isLogicalKillGenPair(gensVal, killsVal) {
+      const g = String(gensVal);
+      const k = String(killsVal);
+      if (g === 'none' && k !== '0') return false;
+      if (g !== 'none' && k === '0') return false;
+      return true;
+    }
+
     function handleRecordMatch() {
       const killerEl = document.getElementById('killer');
       const rawKiller = (killerEl ? killerEl.value : '').trim();
@@ -1508,11 +1591,17 @@
         return;
       }
 
+      if (!isLogicalKillGenPair(gensVal, killsVal)) {
+        alert('エラー: 1人目キル時の残り発電機数と最終キル数の組み合わせが矛盾しています（キルなしの場合は0キル、0キルの場合はキルなしを選択してください）');
+        return;
+      }
+
       const normalizedKiller = normalizeKillerName(rawKiller);
+      const savedKiller = normalizedKiller || rawKiller;
 
       const newMatch = {
         id: generateMatchId(),
-        killer: normalizedKiller || rawKiller,
+        killer: savedKiller,
         gensAtFirstKill: gensVal,
         resultKills: killsVal,
         hasCamp: document.getElementById('hasCamp').checked,
@@ -1522,11 +1611,38 @@
       const matches = getMatchesWithIds();
       matches.push(newMatch);
       localStorage.setItem('dbd_matches', JSON.stringify(matches));
+
+      // 連続入力のためキラー選択状態は維持し、発電機数・キル数・戦術チェックボックスのみ初期状態にリセット
       form.reset();
+      if (killerEl) {
+        killerEl.value = savedKiller;
+      }
+      const campEl = document.getElementById('hasCamp');
+      if (campEl) campEl.checked = false;
+      const tunnelEl = document.getElementById('hasTunnel');
+      if (tunnelEl) tunnelEl.checked = false;
+
       resetSelectButtons();
       if (killerSuggestInstance) killerSuggestInstance.hide();
       renderKillerQuickButtons();
       loadHistory();
+      showRecordToast('✅ 戦績を記録しました');
+    }
+
+    let recordToastTimer = null;
+    function showRecordToast(message = '✅ 戦績を記録しました') {
+      const toastEl = document.getElementById('recordToast');
+      if (!toastEl) return;
+      toastEl.textContent = message;
+      toastEl.classList.add('show');
+      if (recordToastTimer && typeof clearTimeout === 'function') {
+        clearTimeout(recordToastTimer);
+      }
+      if (typeof setTimeout === 'function') {
+        recordToastTimer = setTimeout(() => {
+          toastEl.classList.remove('show');
+        }, 2000);
+      }
     }
 
     const recordBtn = document.getElementById('recordBtn');
@@ -1570,6 +1686,7 @@
         if (item.resultKills === undefined || item.resultKills === null) return false;
         const killsNum = Number(item.resultKills);
         if (Number.isNaN(killsNum) || killsNum < 0 || killsNum > 4) return false;
+        if (!isLogicalKillGenPair(item.gensAtFirstKill, String(killsNum))) return false;
       }
       return true;
     }
