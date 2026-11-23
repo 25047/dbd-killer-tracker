@@ -555,6 +555,10 @@
     }
     /* 記録完了トースト通知 */
     .record-toast {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 12px;
       margin-top: 10px;
       padding: 10px 14px;
       border-radius: 6px;
@@ -583,7 +587,31 @@
       padding-bottom: 10px;
       margin-top: 10px;
       border-width: 1px;
+      pointer-events: auto;
       transform: translateY(0);
+    }
+    .toast-undo-btn {
+      width: auto;
+      margin: 0;
+      padding: 4px 10px;
+      min-height: 28px;
+      border-radius: 4px;
+      border: 1px solid rgba(185, 246, 202, 0.55);
+      background: rgba(0, 230, 118, 0.14);
+      color: #ffffff;
+      font-size: 0.8rem;
+      font-weight: bold;
+      cursor: pointer;
+      transition: all 0.15s ease;
+      flex-shrink: 0;
+    }
+    .toast-undo-btn:hover:not(:disabled) {
+      background: rgba(0, 230, 118, 0.3);
+      border-color: #00e676;
+    }
+    .toast-undo-btn:disabled {
+      opacity: 0.5;
+      cursor: default;
     }
     /* 分析期間切り替えトグル & 成長推移サマリー */
     .period-toggle-group {
@@ -695,7 +723,10 @@
         </div>
 
         <button type="button" id="recordBtn" class="submit-btn">戦績を記録</button>
-        <div id="recordToast" class="record-toast" role="status" aria-live="polite">✅ 戦績を記録しました</div>
+        <div id="recordToast" class="record-toast" role="status" aria-live="polite">
+          <span id="toastMessage">✅ 戦績を記録しました</span>
+          <button type="button" id="toastUndoBtn" class="toast-undo-btn">取り消す</button>
+        </div>
       </form>
     </div>
   </div>
@@ -1803,16 +1834,36 @@
 
       resetSelectButtons();
       if (killerSuggestInstance) killerSuggestInstance.hide();
+      lastRecordedId = newMatch.id;
       renderKillerQuickButtons();
       loadHistory();
-      showRecordToast('✅ 戦績を記録しました');
+      showRecordToast('✅ 戦績を記録しました', { showUndo: true, duration: 4500 });
     }
 
     let recordToastTimer = null;
-    function showRecordToast(message = '✅ 戦績を記録しました') {
+    let lastRecordedId = null;
+
+    function showRecordToast(message = '✅ 戦績を記録しました', options = {}) {
+      const { showUndo = false, duration = 4500 } = options;
       const toastEl = document.getElementById('recordToast');
       if (!toastEl) return;
-      toastEl.textContent = message;
+      const toastMsgEl = document.getElementById('toastMessage');
+      const undoBtn = document.getElementById('toastUndoBtn');
+      if (toastMsgEl) {
+        toastMsgEl.textContent = message;
+      }
+      if (!toastEl.children || toastEl.children.length === 0) {
+        toastEl.textContent = message;
+      }
+      if (undoBtn) {
+        if (showUndo && lastRecordedId) {
+          undoBtn.style.display = 'inline-block';
+          undoBtn.disabled = false;
+        } else {
+          undoBtn.style.display = 'none';
+          undoBtn.disabled = true;
+        }
+      }
       toastEl.classList.add('show');
       if (recordToastTimer && typeof clearTimeout === 'function') {
         clearTimeout(recordToastTimer);
@@ -1820,8 +1871,39 @@
       if (typeof setTimeout === 'function') {
         recordToastTimer = setTimeout(() => {
           toastEl.classList.remove('show');
-        }, 2000);
+          if (showUndo) {
+            lastRecordedId = null;
+          }
+          if (undoBtn) {
+            undoBtn.disabled = true;
+          }
+        }, duration);
       }
+    }
+
+    function undoLastRecordedMatch() {
+      if (!lastRecordedId) return;
+      const targetId = lastRecordedId;
+      lastRecordedId = null;
+
+      const undoBtn = document.getElementById('toastUndoBtn');
+      if (undoBtn) {
+        undoBtn.disabled = true;
+        undoBtn.style.display = 'none';
+      }
+
+      const matches = getMatchesWithIds();
+      const nextMatches = matches.filter(m => m.id !== targetId);
+      localStorage.setItem('dbd_matches', JSON.stringify(nextMatches));
+
+      renderKillerQuickButtons();
+      loadHistory();
+      showRecordToast('↩️ 記録を取り消しました', { showUndo: false, duration: 2000 });
+    }
+
+    const toastUndoBtnEl = document.getElementById('toastUndoBtn');
+    if (toastUndoBtnEl) {
+      toastUndoBtnEl.addEventListener('click', undoLastRecordedMatch);
     }
 
     const recordBtn = document.getElementById('recordBtn');
